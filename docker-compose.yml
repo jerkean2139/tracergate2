@@ -1,0 +1,16 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: tracer_gate_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: tracer
+      POSTGRES_PASSWORD: tracer
+      POSTGRES_DB: tracer_gate
+    ports:
+      - "15432:5432"
+    volumes:
+      - tracer_gate_pgdata:/var/lib/postgresql/data
+
+volumes:
+  tracer_gate_pgdata:

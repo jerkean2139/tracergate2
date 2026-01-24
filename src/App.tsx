@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Settings2, CreditCard, CheckCircle, AlertCircle } from 'lucide-react';
 
 interface ProcessorConfig {
@@ -8,6 +8,9 @@ interface ProcessorConfig {
 }
 
 function App() {
+  const locationIdFromUrl = new URLSearchParams(window.location.search).get('locationId') || '';
+  const apiBaseUrl = (import.meta as any).env?.VITE_API_BASE_URL ? String((import.meta as any).env.VITE_API_BASE_URL) : '';
+
   const [acceptBlue, setAcceptBlue] = useState<ProcessorConfig>({
     mid: '',
     apiToken: '',
@@ -20,11 +23,38 @@ function App() {
     isConnected: false
   });
 
-  const handleConnect = (processor: 'acceptBlue' | 'trx') => {
-    if (processor === 'acceptBlue') {
-      setAcceptBlue(prev => ({ ...prev, isConnected: true }));
-    } else {
+  const handleConnect = async (processor: 'acceptBlue' | 'trx') => {
+    if (processor === 'trx') {
       setTrx(prev => ({ ...prev, isConnected: true }));
+      return;
+    }
+
+    if (!locationIdFromUrl) {
+      alert('Missing locationId. Install the app via GHL so the URL includes ?locationId=...');
+      return;
+    }
+
+    try {
+      const url = apiBaseUrl ? new URL('/api/acceptblue/connect', apiBaseUrl).toString() : '/api/acceptblue/connect';
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          locationId: locationIdFromUrl,
+          sourceKey: acceptBlue.mid,
+          pin: acceptBlue.apiToken,
+        }),
+      });
+
+      const json = (await res.json()) as { ok: boolean; error?: string };
+      if (!res.ok || !json.ok) {
+        alert(json.error || 'Failed to connect Accept Blue');
+        return;
+      }
+
+      setAcceptBlue(prev => ({ ...prev, isConnected: true }));
+    } catch (e) {
+      alert(String(e));
     }
   };
 
@@ -48,27 +78,27 @@ function App() {
       <div className="space-y-4">
         <div>
           <label className="block text-sm font-medium text-text-secondary mb-1">
-            Merchant ID (MID)
+            {processor === 'acceptBlue' ? 'Source Key' : 'Merchant ID (MID)'}
           </label>
           <input
             type="text"
             value={config.mid}
             onChange={(e) => onChange('mid', e.target.value)}
             className="w-full px-4 py-2 border border-charcoal-light rounded-md focus:ring-2 focus:ring-olive/30 focus:border-transparent bg-bg-input text-text-primary placeholder-text-secondary/50"
-            placeholder="Enter your Merchant ID"
+            placeholder={processor === 'acceptBlue' ? 'Enter your Accept Blue Source Key' : 'Enter your Merchant ID'}
           />
         </div>
         
         <div>
           <label className="block text-sm font-medium text-text-secondary mb-1">
-            API Token
+            {processor === 'acceptBlue' ? 'PIN' : 'API Token'}
           </label>
           <input
             type="password"
             value={config.apiToken}
             onChange={(e) => onChange('apiToken', e.target.value)}
             className="w-full px-4 py-2 border border-charcoal-light rounded-md focus:ring-2 focus:ring-olive/30 focus:border-transparent bg-bg-input text-text-primary placeholder-text-secondary/50"
-            placeholder="Enter your API Token"
+            placeholder={processor === 'acceptBlue' ? 'Enter your 4-digit PIN' : 'Enter your API Token'}
           />
         </div>
         
