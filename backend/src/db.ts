@@ -19,6 +19,13 @@ export interface AcceptBlueCredRow {
   updatedAt: string;
 }
 
+export interface TrxCredRow {
+  locationId: string;
+  midEnc: string;
+  apiTokenEnc: string;
+  updatedAt: string;
+}
+
 export class Db {
   readonly pool: Pool;
 
@@ -63,6 +70,15 @@ export class Db {
         received_at timestamptz not null default now()
       );
     `);
+
+    await this.pool.query(`
+      create table if not exists trx_creds (
+        location_id text primary key,
+        mid_enc text not null,
+        api_token_enc text not null,
+        updated_at timestamptz not null default now()
+      );
+    `);
   }
 
   async upsertGhlInstallation(row: Omit<GhlInstallationRow, 'updatedAt'>): Promise<void> {
@@ -96,6 +112,17 @@ export class Db {
     );
   }
 
+  async getGhlInstallation(locationId: string): Promise<GhlInstallationRow | null> {
+    const res = await this.pool.query(
+      `select install_key as "installKey", company_id as "companyId", location_id as "locationId",
+              user_id as "userId", access_token as "accessToken", refresh_token as "refreshToken",
+              token_expires_at as "tokenExpiresAt", scope, updated_at as "updatedAt"
+       from ghl_installations where location_id=$1`,
+      [locationId]
+    );
+    return (res.rows[0] as GhlInstallationRow | undefined) ?? null;
+  }
+
   async upsertAcceptBlueCreds(row: Omit<AcceptBlueCredRow, 'updatedAt'>): Promise<void> {
     await this.pool.query(
       `
@@ -118,9 +145,31 @@ export class Db {
     return (res.rows[0] as AcceptBlueCredRow | undefined) ?? null;
   }
 
+  async upsertTrxCreds(row: Omit<TrxCredRow, 'updatedAt'>): Promise<void> {
+    await this.pool.query(
+      `
+      insert into trx_creds (location_id, mid_enc, api_token_enc, updated_at)
+      values ($1,$2,$3, now())
+      on conflict (location_id) do update set
+        mid_enc = excluded.mid_enc,
+        api_token_enc = excluded.api_token_enc,
+        updated_at = now();
+      `,
+      [row.locationId, row.midEnc, row.apiTokenEnc]
+    );
+  }
+
+  async getTrxCreds(locationId: string): Promise<TrxCredRow | null> {
+    const res = await this.pool.query(
+      `select location_id as "locationId", mid_enc as "midEnc", api_token_enc as "apiTokenEnc", updated_at as "updatedAt" from trx_creds where location_id=$1`,
+      [locationId]
+    );
+    return (res.rows[0] as TrxCredRow | undefined) ?? null;
+  }
+
   async isAcceptBlueEventProcessed(eventId: string): Promise<boolean> {
     const res = await this.pool.query('select 1 from acceptblue_webhook_events where event_id=$1', [eventId]);
-    return res.rowCount > 0;
+    return (res.rowCount ?? 0) > 0;
   }
 
   async markAcceptBlueEventProcessed(eventId: string): Promise<void> {

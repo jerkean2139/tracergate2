@@ -20,6 +20,9 @@ backend/*.sqlite3
 backend/data
 backend/data/*
 
+# Scaffold tools
+.bolt
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
